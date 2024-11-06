@@ -16,15 +16,15 @@ const colormap = [_]rl.Color{
     rl.Color.pink,
 };
 
-const n = 100;
+const n = 2000;
 const screenSize: [2]u32 = .{ 800, 800 };
-const type_count = 3;
+const type_count = 4;
 
-const fps_target = 60;
+const fps_target = 120;
 const delta_t: f32 = 1.0 / @as(f32, @floatFromInt(fps_target));
+const scaling_factor: f32 = 50.0;
 const beta: f32 = 0.3;
-const scaling_factor: f32 = 100.0;
-const friction: f32 = std.math.pow(f32, 1.0 / 2.0, delta_t / 1);
+const friction: f32 = std.math.pow(f32, 1.0 / 2.0, delta_t / 0.05);
 
 const grid_cell_size: f32 = scaling_factor;
 const grid_n_cells: [2]usize = .{
@@ -36,6 +36,16 @@ var grid: [grid_n_cells[0]][grid_n_cells[1]]std.ArrayList(usize) = undefined;
 
 pub fn main() anyerror!void {
     rl.setTraceLogLevel(rl.TraceLogLevel.log_none);
+
+    std.debug.print("n:\t\t\t{}\n", .{n});
+    std.debug.print("type_count:\t\t{}\n", .{type_count});
+    std.debug.print("grid_n_cells:\t\t{}x{}\n", .{ grid_n_cells[0], grid_n_cells[1] });
+    std.debug.print("grid_cell_size:\t\t{}\n", .{grid_cell_size});
+    std.debug.print("friction:\t\t{}\n", .{friction});
+    std.debug.print("beta:\t\t\t{}\n", .{beta});
+    std.debug.print("scaling:\t\t{}\n", .{scaling_factor});
+    std.debug.print("delta_t:\t\t{}\n", .{delta_t});
+    std.debug.print("fps:\t\t\t{}\n", .{fps_target});
 
     for (0..grid_n_cells[0]) |i| {
         for (0..grid_n_cells[1]) |j| {
@@ -81,7 +91,16 @@ pub fn main() anyerror!void {
 
     rl.setTargetFPS(fps_target);
 
+    // var p2s = std.ArrayList(usize).init(std.heap.page_allocator);
+    // defer p2s.deinit();
+
+    // var p2s_f = std.ArrayList(f32).init(std.heap.page_allocator);
+    // defer p2s_f.deinit();
+
     while (!rl.windowShouldClose()) {
+        // defer p2s.clearAndFree();
+        // defer p2s_f.clearAndFree();
+
         defer {
             for (0..grid_n_cells[0]) |i| {
                 for (0..grid_n_cells[1]) |j| {
@@ -124,6 +143,10 @@ pub fn main() anyerror!void {
                         for (grid[cell_x][cell_y].items) |p2_idx| {
                             if (p1_idx == p2_idx) continue;
 
+                            // if (p1_idx == 0) {
+                            //     try p2s.append(p2_idx);
+                            // }
+
                             const d_temp: [2]i32 = .{
                                 positions[0][p2_idx] - positions[0][p1_idx],
                                 positions[1][p2_idx] - positions[1][p1_idx],
@@ -141,7 +164,11 @@ pub fn main() anyerror!void {
                                     @abs(@as(f32, @floatFromInt(@as(i32, @intCast(screenSize[1])) - d_temp[1]))),
                             };
                             const distance = std.math.sqrt(displacement[0] * displacement[0] + displacement[1] * displacement[1]);
-                            const f = interaction(distance / scaling_factor, A[types[p1_idx]][types[p2_idx]]);
+                            const f = interaction(distance / scaling_factor, A[types[p1_idx]][types[p2_idx]]) * scaling_factor;
+
+                            // if (p1_idx == 0) {
+                            //     try p2s_f.append(f);
+                            // }
 
                             if (distance == 0) {
                                 displacement = .{ 0, 0 };
@@ -159,6 +186,15 @@ pub fn main() anyerror!void {
 
                     velocities[0][p1_idx] += force[0];
                     velocities[1][p1_idx] += force[1];
+
+                    // if (p1_idx == 0) std.debug.print("{d: <4} {d: <4} | {d: <4} {d: <4} | {d: <4} {d: <4}\n", .{
+                    //     force[0],
+                    //     force[1],
+                    //     velocities[0][0],
+                    //     velocities[1][0],
+                    //     positions[0][0],
+                    //     positions[1][0],
+                    // });
                 }
             }
         }
@@ -177,12 +213,47 @@ pub fn main() anyerror!void {
 
             rl.clearBackground(rl.Color.black);
 
-            for (1..grid_n_cells[0]) |i| {
-                rl.drawLine(@as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), 0, @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), screenSize[1], rl.Color.gray);
-            }
-            for (1..grid_n_cells[1]) |i| {
-                rl.drawLine(0, @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), screenSize[0], @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), rl.Color.gray);
-            }
+            // for (1..grid_n_cells[0]) |i| {
+            //     rl.drawLine(@as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), 0, @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), screenSize[1], rl.Color.gray);
+            // }
+            // for (1..grid_n_cells[1]) |i| {
+            //     rl.drawLine(0, @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), screenSize[0], @as(i32, @intCast(i)) * @as(i32, @intFromFloat(grid_cell_size)), rl.Color.gray);
+            // }
+
+            //     for (p2s.items, 0..) |p2, idx| {
+            //         rl.drawLine(positions[0][0], positions[1][0], positions[0][p2], positions[1][p2], rl.Color.white);
+
+            //         const f_value: [*:0]const u8 = (try std.fmt.allocPrintZ(std.heap.page_allocator, "{d}", .{p2s_f.items[idx]})).ptr;
+            //         rl.drawText(f_value, positions[0][p2], positions[1][p2], 12, rl.Color.white);
+            //     }
+
+            //     rl.drawCircleLines(positions[0][0], positions[1][0], beta * scaling_factor, rl.Color.white);
+            //     rl.drawCircleLines(positions[0][0], positions[1][0], scaling_factor, rl.Color.white);
+
+            //     if (positions[0][0] - @as(i32, @intFromFloat(beta * scaling_factor)) < 0) {
+            //         rl.drawCircleLines(positions[0][0] + @as(i32, @intCast(screenSize[0])), positions[1][0], beta * scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[0][0] - @as(i32, @intFromFloat(scaling_factor)) < 0) {
+            //         rl.drawCircleLines(positions[0][0] + @as(i32, @intCast(screenSize[0])), positions[1][0], scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[1][0] - @as(i32, @intFromFloat(beta * scaling_factor)) < 0) {
+            //         rl.drawCircleLines(positions[0][0], positions[1][0] + @as(i32, @intCast(screenSize[1])), beta * scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[1][0] - @as(i32, @intFromFloat(scaling_factor)) < 0) {
+            //         rl.drawCircleLines(positions[0][0], positions[1][0] + @as(i32, @intCast(screenSize[1])), scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[0][0] - @as(i32, @intFromFloat(beta * scaling_factor)) > @as(i32, @intCast(screenSize[0]))) {
+            //         rl.drawCircleLines(positions[0][0] + @as(i32, @intCast(screenSize[0])), positions[1][0], beta * scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[0][0] - @as(i32, @intFromFloat(scaling_factor)) > @as(i32, @intCast(screenSize[0]))) {
+            //         rl.drawCircleLines(positions[0][0] + @as(i32, @intCast(screenSize[0])), positions[1][0], scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[1][0] - @as(i32, @intFromFloat(beta * scaling_factor)) > @as(i32, @intCast(screenSize[1]))) {
+            //         rl.drawCircleLines(positions[0][0], positions[1][0] - @as(i32, @intCast(screenSize[1])), beta * scaling_factor, rl.Color.white);
+            //     }
+            //     if (positions[1][0] - @as(i32, @intFromFloat(scaling_factor)) > @as(i32, @intCast(screenSize[1]))) {
+            //         rl.drawCircleLines(positions[0][0], positions[1][0] - @as(i32, @intCast(screenSize[1])), scaling_factor, rl.Color.white);
+            //     }
 
             for (0..n) |i| {
                 rl.drawCircle(positions[0][i], positions[1][i], 2, colormap[types[i]]);
