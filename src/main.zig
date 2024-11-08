@@ -16,13 +16,14 @@ const colormap = [_]rl.Color{
     rl.Color.pink,
 };
 
-const n = 2000;
+const n = 5000;
+const max_time_steps = fps_target * 10;
 const screenSize: [2]u32 = .{ 800, 800 };
-const type_count = 4;
+const type_count = 5;
 
-const fps_target = 120;
+const fps_target = 60;
 const delta_t: f32 = 1.0 / @as(f32, @floatFromInt(fps_target));
-const scaling_factor: f32 = 50.0;
+const scaling_factor: f32 = 30.0;
 const beta: f32 = 0.3;
 const friction: f32 = std.math.pow(f32, 1.0 / 2.0, delta_t / 0.05);
 
@@ -33,6 +34,18 @@ const grid_n_cells: [2]usize = .{
 };
 
 var grid: [grid_n_cells[0]][grid_n_cells[1]]std.ArrayList(usize) = undefined;
+
+const directions = [_][2]isize{
+    .{ -1, -1 },
+    .{ -1, 0 },
+    .{ -1, 1 },
+    .{ 0, -1 },
+    .{ 0, 0 },
+    .{ 0, 1 },
+    .{ 1, -1 },
+    .{ 1, 0 },
+    .{ 1, 1 },
+};
 
 pub fn main() anyerror!void {
     rl.setTraceLogLevel(rl.TraceLogLevel.log_none);
@@ -69,8 +82,8 @@ pub fn main() anyerror!void {
 
     var A: [type_count][type_count]f32 = undefined;
 
-    for (0..type_count) |i| {
-        for (0..type_count) |j| {
+    inline for (0..type_count) |i| {
+        inline for (0..type_count) |j| {
             A[i][j] = rand.floatNorm(f32);
         }
     }
@@ -97,7 +110,8 @@ pub fn main() anyerror!void {
     // var p2s_f = std.ArrayList(f32).init(std.heap.page_allocator);
     // defer p2s_f.deinit();
 
-    while (!rl.windowShouldClose()) {
+    var frame_count: u64 = 0;
+    while (frame_count < max_time_steps and !rl.windowShouldClose()) : (frame_count += 1) {
         // defer p2s.clearAndFree();
         // defer p2s_f.clearAndFree();
 
@@ -121,22 +135,10 @@ pub fn main() anyerror!void {
 
         for (grid, 0..) |row, i| {
             for (row, 0..) |_, j| {
-                const directions = [_][2]isize{
-                    .{ -1, -1 },
-                    .{ -1, 0 },
-                    .{ -1, 1 },
-                    .{ 0, -1 },
-                    .{ 0, 0 },
-                    .{ 0, 1 },
-                    .{ 1, -1 },
-                    .{ 1, 0 },
-                    .{ 1, 1 },
-                };
-
                 for (grid[i][j].items) |p1_idx| {
                     var force: [2]f32 = .{ 0, 0 };
 
-                    for (directions) |d| {
+                    inline for (directions) |d| {
                         const cell_x = @as(usize, @intCast(try std.math.mod(isize, @as(isize, @intCast(i)) + d[0], @as(isize, @intCast(grid_n_cells[0])))));
                         const cell_y = @as(usize, @intCast(try std.math.mod(isize, @as(isize, @intCast(j)) + d[1], @as(isize, @intCast(grid_n_cells[1])))));
 
@@ -163,7 +165,7 @@ pub fn main() anyerror!void {
                                 else
                                     @abs(@as(f32, @floatFromInt(@as(i32, @intCast(screenSize[1])) - d_temp[1]))),
                             };
-                            const distance = std.math.sqrt(displacement[0] * displacement[0] + displacement[1] * displacement[1]);
+                            const distance = @sqrt(displacement[0] * displacement[0] + displacement[1] * displacement[1]);
                             const f = interaction(distance / scaling_factor, A[types[p1_idx]][types[p2_idx]]) * scaling_factor;
 
                             // if (p1_idx == 0) {
@@ -203,8 +205,8 @@ pub fn main() anyerror!void {
             positions[0][i] += std.math.lossyCast(i32, velocities[0][i] * delta_t);
             positions[1][i] += std.math.lossyCast(i32, velocities[1][i] * delta_t);
 
-            positions[0][i] = try std.math.mod(i32, positions[0][i], screenSize[0]);
-            positions[1][i] = try std.math.mod(i32, positions[1][i], screenSize[1]);
+            positions[0][i] = @mod(positions[0][i], screenSize[0]);
+            positions[1][i] = @mod(positions[1][i], screenSize[1]);
         }
 
         { // draw block
@@ -264,11 +266,7 @@ pub fn main() anyerror!void {
     }
 }
 
-fn interaction(d: f32, a: f32) f32 {
-    if (d < beta) {
-        return (d / beta) - 1;
-    } else if (d < 1) {
-        return a * (1 - @abs(2 * d - 1 - beta) / (1 - beta));
-    }
-    return 0;
+inline fn interaction(d: f32, a: f32) f32 {
+    return (d / beta - 1) * @as(f32, @floatFromInt(@intFromBool(d < beta))) +
+        a * (1 - @abs(2 * d - 1 - beta) / (1 - beta)) * @as(f32, @floatFromInt(@intFromBool(d < 1 and !(d < beta))));
 }
